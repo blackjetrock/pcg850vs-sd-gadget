@@ -28,4 +28,23 @@ The circuit involving Q1 is an inverter that should allow the UART functionality
 
 For programming I use a STLINK V2 clone from ebay connected to the programming connector of the blue pill.
 
+Construction Notes
+==================
+
+Components are fitted as shown on the schematic, apart from a few noted here:
+
+R14, Q1 and R15 are a hardware level shifter that takes the transmitted data (TX) from the PC-G850VS and sends it to the hardware USART on the blue pill. I don't use this at the moment as the code can decode the serial data. These components can be omitted or fitted. The sketch will have to be adjusted if you want to use the hardware USART.
+
+J7 is a power jumper. If it is shoted then power comes from the PC-G850VS. If open then the blue pill can power the circuit (useful if programming the blue pill).
+R4 and R5 are power connections and should be 0R links or wire links.
+
+The blue pill, display and SD card reader can either be soldered to the PCB or fitted in sockets. If soldered then th eprofile is much lower but obviously these parts are harder to remve if you need to.
+
+The SD card reader comes with a right angle type connector, for fitting on the PCB I desolder the connector it comes with and fit a straight connector.
+
+I use a straight pin header for J1 and solder it on the top of the board. This is because straight headers are cheaper and they also lead to a lowe rprofile once fitted.
+
+OLED displays come in two pinouts, with reversed power connections. There's two connectors for the OLED display, one for each pinout. Make sure the OLED display is connected to the correct pinout connector.
+
+I use an ST-LINKV2 from ebay for programming the blue pill. Any method of getting the sketch on to the blue pill should be fine.
 
