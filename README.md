@@ -33,9 +33,11 @@ Construction Notes
 
 Components are fitted as shown on the schematic, apart from a few noted here:
 
+The SD card reader module should be powered from 5V, not 3V3. The PCBs all have a 3V3 supply wired to the module. I have found that some modules will work with a 3V3 supply, but some won't. Cutting the track to the power pin of the module and running  wire from 3V3 to the supply pin of the module fixes the problem.
+
 R14, Q1 and R15 are a hardware level shifter that takes the transmitted data (TX) from the PC-G850VS and sends it to the hardware USART on the blue pill. I don't use this at the moment as the code can decode the serial data. These components can be omitted or fitted. The sketch will have to be adjusted if you want to use the hardware USART.
 
-J7 is a power jumper. If it is shoted then power comes from the PC-G850VS. If open then the blue pill can power the circuit (useful if programming the blue pill).
+J7 is a power jumper. If it is shorted then power comes from the PC-G850VS. If open then the blue pill can power the circuit (useful if programming the blue pill).
 R4 and R5 are power connections and should be 0R links or wire links.
 
 The blue pill, display and SD card reader can either be soldered to the PCB or fitted in sockets. If soldered then th eprofile is much lower but obviously these parts are harder to remve if you need to.
