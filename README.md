@@ -44,7 +44,7 @@ The blue pill, display and SD card reader can either be soldered to the PCB or f
 
 The SD card reader comes with a right angle type connector, for fitting on the PCB I desolder the connector it comes with and fit a straight connector.
 
-I use a straight pin header for J1 and solder it on the top of the board. This is because straight headers are cheaper and they also lead to a lowe rprofile once fitted.
+I use a straight pin header for J1 and solder it on the top of the board. This is because straight headers are cheaper and they also lead to a lower profile once fitted.
 
 OLED displays come in two pinouts, with reversed power connections. There's two connectors for the OLED display, one for each pinout. Make sure the OLED display is connected to the correct pinout connector.
 
