@@ -1,0 +1,12 @@
+"Id";"Designator";"Package";"Quantity";"Designation";"Supplier and ref";
+1;"J6";"PinHeader_1x06_P2.54mm_Vertical";1;"Conn_01x06";;;
+2;"J7";"PinHeader_1x02_P2.54mm_Vertical";1;"Conn_01x02";;;
+3;"R17,R16,R15,R14,R13,R12,R11,R10,R9,R8,R7,R6,R5,R4,R3,R2,R1";"R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal";17;"R_Small";;;
+4;"TP1";"TestPoint_Loop_D2.60mm_Drill0.9mm_Beaded";1;"TestPoint";;;
+5;"U1";"BLUEPILL";1;"BP";;;
+6;"SW2,SW3,SW1";"SW_PUSH-12mm";3;"Switch_SW_SPST";;;
+7;"J5";"PinHeader_1x09_P2.54mm_Vertical";1;"Conn_01x09";;;
+8;"Q1";"TO92_vert";1;"Q_NPN_CBE";;;
+9;"J4,J2,J3";"PinHeader_1x04_P2.54mm_Vertical";3;"Conn_01x04";;;
+10;"J1";"PinHeader_1x11_P2.54mm_Vertical";1;"pc850vs_11_pin";;;
+11;"A1";"SD_Card_Module";1;"SD_Card_Module_catalex";;;

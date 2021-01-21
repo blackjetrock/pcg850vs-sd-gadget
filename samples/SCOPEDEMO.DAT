@@ -1,0 +1,11 @@
+10REM Scope Demo
+11REM Counts from 0 to 255
+12REM with a delay loop
+13REM Gadget can almost display this
+20OPEN "PIO:"
+30PIOSET 0
+40FOR I=0 TO 255
+42FOR J=1 TO 10
+44NEXT J
+50PIOPUT I
+60NEXT I
