@@ -775,23 +775,8 @@ F 3 "~" H 4350 7050 50  0001 C CNN
 	1    4350 7050
 	1    0    0    -1  
 $EndComp
-$Comp
-L Connector_Generic:Conn_01x07 J6
-U 1 1 5F1971A4
-P 8550 4600
-F 0 "J6" H 8630 4642 50  0000 L CNN
-F 1 "Conn_01x07" H 8630 4551 50  0000 L CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical" H 8550 4600 50  0001 C CNN
-F 3 "~" H 8550 4600 50  0001 C CNN
-	1    8550 4600
-	1    0    0    -1  
-$EndComp
 Wire Wire Line
 	5100 2250 8300 2250
-Wire Wire Line
-	8300 2250 8300 4300
-Wire Wire Line
-	8300 4300 8350 4300
 Connection ~ 5100 2250
 $Comp
 L power:+3V3 #PWR0110
@@ -963,4 +948,19 @@ F 3 "" H 7650 1450 50  0001 C CNN
 $EndComp
 Wire Wire Line
 	7650 1250 7650 1450
+$Comp
+L Connector_Generic:Conn_01x06 J6
+U 1 1 5F29AE68
+P 8550 4600
+F 0 "J6" H 8630 4592 50  0000 L CNN
+F 1 "Conn_01x06" H 8630 4501 50  0000 L CNN
+F 2 "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical" H 8550 4600 50  0001 C CNN
+F 3 "~" H 8550 4600 50  0001 C CNN
+	1    8550 4600
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	8350 4400 8300 4400
+Wire Wire Line
+	8300 2250 8300 4400
 $EndSCHEMATC
