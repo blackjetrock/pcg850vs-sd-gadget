@@ -15,7 +15,7 @@ The data sent or received is stored in the RAM of the blue pill, so no files gre
 The SIO protocol has handshaking so this could be used to pause data from the PC-G850VS to the gadget when writing to the SD card. Reading from the card 
 could be done without a problem as data is sent once it is read.
 
-An ARM chip with more RAM could be fitted to the blue pill, this is more involved as it requires desoldering the QFP and putting a new on eon.
+An ARM chip with more RAM could be fitted to the blue pill, this is more involved as it requires desoldering the QFP and putting a new one on.
 
 Circuit
 -------
