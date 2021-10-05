@@ -1467,6 +1467,8 @@ HardwareSerial Serial2(PB11, PB10);
 
 void setup() {
 
+  // Wait a while for the OLED display to start up
+  delay(100);
   Wire.begin();
 
   set_if_inputs();
@@ -1474,6 +1476,9 @@ void setup() {
   pinMode(PA0, INPUT);
   pinMode(PA1, INPUT);
   pinMode(PA2, INPUT);
+  
+  digitalWrite(PA4, LOW);
+  pinMode(PA4, OUTPUT);
   
   pinMode(statPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
@@ -1603,11 +1608,10 @@ void setup() {
   //  attachInterrupt(digitalPinToInterrupt(SIOTXDPin), highISR, RISING);
 }
 
-
 void loop() {
   int i;
   char c;
-  
+
   update_buttons();
   run_monitor();
 
@@ -1615,7 +1619,7 @@ void loop() {
     {
       c = Serial2.read();
       Serial.print(" S");
-      Serial.println(c,HEX);
+      Serial.println(c,HEX); 
     }
 }
 
