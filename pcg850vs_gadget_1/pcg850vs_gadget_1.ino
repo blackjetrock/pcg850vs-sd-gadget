@@ -121,6 +121,8 @@ unsigned int menu_size = 0;
 #define MAX_LISTFILES 7
 #define MAX_NAME 20
 
+const char *filetag = "@file ";
+
 MENU_ELEMENT listfiles[MAX_LISTFILES+1];
 int num_listfiles;
 char names[MAX_LISTFILES][MAX_NAME];
@@ -574,23 +576,55 @@ void cmd_initsd(String cmd)
 
 }
 
+static inline bool matches(const char *s, size_t len, int pos, const char *tag,
+        size_t taglen)
+{
+    int i;
+    for (i = 0; i < len && s[pos + i] != 0x1A && s[pos + i] == tag[i]; i++);
+    return i == taglen;
+}
+
+static int index_of(const char *s, size_t len, const char *tag, size_t taglen)
+{
+    int i;
+    for (i = 0; i < len && s[i] != 0x1A; i++) {
+        if (matches(s, len, i, tag, taglen))
+            return i;
+    }
+    return -1;
+}
+
+static bool get_filename(const char *s, size_t len, char *dst, size_t dstlen)
+{
+    int i, j;
+    size_t taglen = strlen(filetag);
+    if ((i = index_of(s, len, filetag, taglen)) == -1)
+        return false;
+    i += strlen(filetag);
+    for (j = 0; j < dstlen - 1 && i < len && !strchr(" \x1A\t\n\r", s[i]);)
+        dst[j++] = s[i++];
+    if (j < dstlen)
+        dst[j] = 0;
+    return j > 1;
+}
 
 // Writes the buffer to a file.
 // Deletes any file that exists with the same name so that the resulting
 // file is the same size as the buffer
-
 
 void core_writefile(boolean oled_nserial)
 {
   char filename[20] = "U___.txt";
   int i;
 
-  do
+  if (!get_filename(stored_bytes, MAX_BYTES, filename, 20))
     {
-      sprintf(filename, "PCG%04d.DAT", filename_index++);
+      do
+        {
+          sprintf(filename, "PCG%04d.DAT", filename_index++);
+        }
+      while( SD.exists(filename) );
     }
-
-  while( SD.exists(filename) );
   
     if( oled_nserial )
     {
