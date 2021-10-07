@@ -1450,8 +1450,8 @@ void update_buttons()
 	    }
 	}
       
-      // If button has gone from pressed to not pressed then we treat that as a key event
-      if( (buttons[i].last_pressed == true) && (buttons[i].pressed == false) )
+      // If button has gone from not pressed to pressed then we treat that as a key event
+      if( (buttons[i].last_pressed == false) && (buttons[i].pressed == true) )
 	{
 	  Serial.println("Call ev");
 	  (buttons[i].event_fn)();
