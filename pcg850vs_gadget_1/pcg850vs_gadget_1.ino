@@ -1476,6 +1476,10 @@ void setup() {
   pinMode(PA0, INPUT);
   pinMode(PA1, INPUT);
   pinMode(PA2, INPUT);
+
+  // Set SD card CS GPIO to be an output
+  digitalWrite(PA4, LOW);
+  pinMode(PA4, OUTPUT);
   
   digitalWrite(PA4, LOW);
   pinMode(PA4, OUTPUT);
