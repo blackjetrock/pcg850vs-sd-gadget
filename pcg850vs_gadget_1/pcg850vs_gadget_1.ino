@@ -576,6 +576,10 @@ void cmd_initsd(String cmd)
 
 }
 
+// Tests if the the specified tag matches the bytes at the specified position of
+// a 0x1A-terminated segment at the specified position of the buffer.
+// Please note that len is the buffer size (from position zero) and not the segment.
+
 static inline bool matches(const char *s, size_t len, int pos, const char *tag,
         size_t taglen)
 {
@@ -584,15 +588,23 @@ static inline bool matches(const char *s, size_t len, int pos, const char *tag,
     return i == taglen;
 }
 
+// Returns the index of the first occurence of the tag in the specified buffer
+// or -1 if the tag has not been found.
+
 static int index_of(const char *s, size_t len, const char *tag, size_t taglen)
 {
     int i;
-    for (i = 0; i < len && s[i] != 0x1A; i++) {
+    for (i = 0; i < len && s[i] != 0x1A; i++)
+      {
         if (matches(s, len, i, tag, taglen))
             return i;
-    }
+      }
     return -1;
 }
+
+// Retrieves the file name from the respective annotation tag stored in the 0x1A
+// terminated segment of the specified buffer.
+// Returns true if the file name is successfully retrieved, false otherwise.
 
 static bool get_filename(const char *s, size_t len, char *dst, size_t dstlen)
 {
