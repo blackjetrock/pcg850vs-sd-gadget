@@ -17,6 +17,15 @@ could be done without a problem as data is sent once it is read.
 
 An ARM chip with more RAM could be fitted to the blue pill, this is more involved as it requires desoldering the QFP and putting a new one on.
 
+An issue with early code meant that the SD card may not initialise properly. A code fix for this has bee pushed to the repository.
+
+File Tags
+---------
+
+If the gadget detects a tag of '@file' (case sensitive) in the file that it has read from the G850 then it usd the filename specified after the tag
+(delimited with a space) as the name to use if the file is written to the SD card. If the file tag does not exist then the gadget uses unique
+filenames of the form PCGnnnn.DAT where nnnn is chosen to be the next unused value on the SD card.
+
 Circuit
 -------
 
