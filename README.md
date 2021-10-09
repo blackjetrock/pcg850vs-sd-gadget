@@ -59,3 +59,10 @@ OLED displays come in two pinouts, with reversed power connections. There's two 
 
 I use an ST-LINKV2 from ebay for programming the blue pill. Any method of getting the sketch on to the blue pill should be fine.
 
+Supported Devices
+-----------------
+
+The gadget has been used on the:
+PC-G850VS
+PC-G850
+
