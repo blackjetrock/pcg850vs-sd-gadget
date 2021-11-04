@@ -414,7 +414,8 @@ void cmd_display(String cmd)
 
 void cmd_clear(String cmd)
 {
-  bytecount = -1;    // We reset to -1 so we drop the leading spurious character
+  if (bytecount)
+    bytecount = -1;    // We reset to -1 so we drop the leading spurious character
 
 #if DIRECT_WRITE
   SD.remove(filename);
@@ -883,7 +884,8 @@ void button_scope_if(MENU_ELEMENT *e)
 
 void button_clear(MENU_ELEMENT *e)
 {
-  bytecount = -1;
+  if (bytecount)
+    bytecount = -1;
 
   display.clearDisplay();
   display.setCursor(0,0);
