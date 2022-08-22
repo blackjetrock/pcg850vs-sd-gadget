@@ -7,6 +7,7 @@
 //           SBH 05/08/22   v1.1   Removed surplus code, added transmit status graph
 //           SBH 05/08/22   v1.2   Blinking cursor
 //           AJM 21/0822    v2.0   Merged SBH code, altered version and put back in menu options
+//           AJM 22/0822    v2.1   Tidied version string and menu
 //
 ////////////////////////////////////////////////////////////////////////////
 //
@@ -17,6 +18,8 @@
 // Preferences -> Additional Boards Manager URL: https://github.com/stm32duino/BoardManagerFiles/raw/main/package_stmicroelectronics_index.json
 //
 ///////////////////////////////////////////////////////////////////////////
+
+#define VERSION_STRING "V2.1"
 
 #include <SPI.h>
 #include <SD.h>
@@ -1597,14 +1600,14 @@ struct MENU_ELEMENT sio_menu[] =
 
 struct MENU_ELEMENT home_menu[] =
   {
-    {SUB_MENU,       "SIO",                        sio_menu, NULL},
+    {SUB_MENU,       "SIO setup",                  sio_menu, NULL},
     {BUTTON_ELEMENT, "Clear buffer",               NULL,     button_clear},
     {BUTTON_ELEMENT, "List_SD",                    NULL,     button_list},
     {BUTTON_ELEMENT, "Read file to buffer",        NULL,     button_read},
     {BUTTON_ELEMENT, "Display buffer",             NULL,     button_display},
     {BUTTON_ELEMENT, "Send buffer to 850VS",       NULL,     button_send},
-    {BUTTON_ELEMENT, "Write",                      NULL,     button_write},
-    {SUB_MENU,       "PIO",                        pio_menu, NULL},   
+    {BUTTON_ELEMENT, "Write buffer to file",       NULL,     button_write},
+    {SUB_MENU,       "PIO setup",                  pio_menu, NULL},   
     {MENU_END,       "",                           NULL,     NULL},
   };
 
@@ -1902,7 +1905,7 @@ void setup() {
   display.setTextColor(SSD1306_WHITE);        // Draw white text
   display.setCursor(0,0);             // Start at top-left corner
   display.println(F("PC-G850VS Gadget"));
-  display.println(F("Rev V2.0"));
+  display.println(F(VERSION_STRING));
   display.display();
   
   Serial.print("\nInitializing SD card...");
