@@ -6,9 +6,10 @@
 // Modified: SBH 04/08/22   v1.0   Added comments
 //           SBH 05/08/22   v1.1   Removed surplus code, added transmit status graph
 //           SBH 05/08/22   v1.2   Blinking cursor
-//           AJM 21/0822    v2.0   Merged SBH code, altered version and put back in menu options
-//           AJM 22/0822    v2.1   Tidied version string and menu
-//
+//           AJM 21/08/22   v2.0   Merged SBH code, altered version and put back in menu options
+//           AJM 22/08/22   v2.1   Tidied version string and menu
+//           AJM 27/08/22   v2.2   Added SSIO reception interrupt. Temp comment out due to menu scrolling
+//                                 not working. 
 ////////////////////////////////////////////////////////////////////////////
 //
 // ARDUINO IDE SETTINGS
@@ -19,7 +20,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
-#define VERSION_STRING "V2.1"
+#define VERSION_STRING "V2.2"
 
 #include <SPI.h>
 #include <SD.h>
@@ -68,6 +69,16 @@ const int SIOCTSPin = IFD5Pin;
 const int SIODSRPin = IFD6Pin;
 const int SIOCIPin  = IFD7Pin;
 
+// SSIO pins
+const int SIOBUSYPin = IFD0Pin;
+const int SIODOUTPin = IFD1Pin;
+const int SIOXINPin  = IFD2Pin;
+const int SIOXOUTPin = IFD3Pin;
+const int SIODINPin  = IFD4Pin;
+const int SIOACKPin  = IFD5Pin;
+const int SIOEX1Pin  = IFD6Pin;
+const int SIOEX2Pin  = IFD7Pin;
+
 // Debug outputs
 const int statPin   = PC13;
 const int dataPin   = PC14;
@@ -97,7 +108,7 @@ File dumpfile;
 
 // STM32F103C8 has only 20k of SRAM
 //const int MAX_BYTES = 10000;
-const int MAX_BYTES = 12000; 
+const int MAX_BYTES = 10000; 
 const int button1Pin = PA0;
 const int button2Pin = PA1;
 const int button3Pin = PC15;
@@ -210,7 +221,7 @@ void but_ev_null();
 void but_ev_up();
 void but_ev_down();
 void but_ev_select();
-
+void button_ssio_mode();
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -344,13 +355,39 @@ void set_if_inputs()
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
 // Set interface to SIO mode
 
 void set_if_sio()
 {
   set_if_inputs();
+}
+
+// Set interface to SSIO mode
+
+void set_if_ssio()
+{
+  set_if_inputs();
+
+  // Set up control lines to allow 850 to send and receive
+  // SSIO data
+  
+  pinMode(SIOBUSYPin, INPUT);
+  pinMode(SIODOUTPin, INPUT);
+  pinMode(SIOXOUTPin, INPUT);
+  // Drive signals to allow sending by 850
+  digitalWrite(SIOACKPin, LOW);    // Wait
+
+  pinMode(SIOACKPin,  OUTPUT);
+
+  // Drive signals to allow sending by 850
+  digitalWrite(SIOACKPin, LOW);
+
+  detachInterrupt(digitalPinToInterrupt(SIOTXDPin));
+  attachInterrupt(digitalPinToInterrupt(SIOXOUTPin), ssio_isr,  RISING);
   
 }
+
 
 // Read the state of the interface
 int read_if_state()
@@ -1572,6 +1609,32 @@ void button_set_sio(MENU_ELEMENT *e)
   to_back_menu(NULL);
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// SSIO menu
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void button_set_ssio(MENU_ELEMENT *e)
+{
+  // Set the data directions for the SIO mode
+  set_if_ssio();
+ 
+
+  //reset data counter
+  bytecount = 0;
+
+  capture_bits = 0xffff;
+
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("SSIO Mode set");
+  display.display();
+  
+  delay(1000);
+  to_back_menu(NULL);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -1601,17 +1664,27 @@ struct MENU_ELEMENT sio_menu[] =
     {MENU_END,       "",                           NULL,     NULL},
   };
 
+struct MENU_ELEMENT ssio_menu[] =
+  {
+    {BUTTON_ELEMENT, "Set SSIO Mode",              NULL,     button_set_ssio},
+    {BUTTON_ELEMENT, "Set All Inputs",             NULL,     button_set_inputs},
+    {BUTTON_ELEMENT, "Capture data",               NULL,     button_ssio_mode},
+    {BUTTON_ELEMENT, "Exit",                       NULL,     button_to_home},
+    {MENU_END,       "",                           NULL,     NULL},
+  };
+
 struct MENU_ELEMENT home_menu[] =
   {
-    {SUB_MENU,       "SIO setup",                  sio_menu, NULL},
-    {BUTTON_ELEMENT, "Clear buffer",               NULL,     button_clear},
-    {BUTTON_ELEMENT, "List_SD",                    NULL,     button_list},
-    {BUTTON_ELEMENT, "Read file to buffer",        NULL,     button_read},
-    {BUTTON_ELEMENT, "Display buffer",             NULL,     button_display},
-    {BUTTON_ELEMENT, "Send buffer to 850VS",       NULL,     button_send},
-    {BUTTON_ELEMENT, "Write buffer to file",       NULL,     button_write},
-    {SUB_MENU,       "PIO setup",                  pio_menu, NULL},   
-    {MENU_END,       "",                           NULL,     NULL},
+    {SUB_MENU,       "SIO setup",                  sio_menu,  NULL},
+    //    {SUB_MENU,       "SSIO setup",                 ssio_menu, NULL},
+    {BUTTON_ELEMENT, "Clear buffer",               NULL,      button_clear},
+    {BUTTON_ELEMENT, "List_SD",                    NULL,      button_list},
+    {BUTTON_ELEMENT, "Read file to buffer",        NULL,      button_read},
+    {BUTTON_ELEMENT, "Display buffer",             NULL,      button_display},
+    {BUTTON_ELEMENT, "Send buffer to 850VS",       NULL,      button_send},
+    {BUTTON_ELEMENT, "Write buffer to file",       NULL,      button_write},
+    {SUB_MENU,       "PIO setup",                  pio_menu,  NULL},   
+    {MENU_END,       "",                           NULL,      NULL},
   };
 
 
@@ -1851,7 +1924,75 @@ void update_buttons()
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// SSIO Mode
+//
+// We sit in a loop looking at the interface, displaying characters that have come in
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
+volatile unsigned int ssio_data = 0;
+volatile unsigned int ssio_data_len = 0;
+
+void ssio_isr()
+{
+  // This is run when the clock line goes high
+  // Sample data line and add data bit
+  
+  if( digitalRead(SIODOUTPin)==HIGH )
+    {
+      ssio_data <<= 1;
+      ssio_data += 1;
+    }
+  else
+    {
+      ssio_data <<= 1;
+    }
+
+  ssio_data_len++;
+
+  if( ssio_data_len == 8 )
+    {
+      stored_bytes[bytecount++] = ssio_data;
+      if ( bytecount >= MAX_BYTES )
+	{
+	  bytecount = MAX_BYTES -1;
+	}
+      
+      ssio_data_len = 0;
+    }
+  
+}
+
+void button_ssio_mode(struct MENU_ELEMENT *e)
+{
+  int done = 0;
+  char chstr[2] = " ";
+  int data;
+  
+  // Remove the interrupt handler that receives SIO data
+  detachInterrupt(digitalPinToInterrupt(SIOTXDPin));
+  attachInterrupt(digitalPinToInterrupt(SIOXOUTPin), ssio_isr,  CHANGE);
+
+#if 0
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.display();
+#endif
+  // Enable transmission
+  digitalWrite(SIOACKPin, HIGH);
+
+#if 0
+  // Sit in loop looking for data to come in
+  while(!done)
+    {
+    }
+  
+  // End of mode, re-install interrupt handler and exit
+  attachInterrupt(digitalPinToInterrupt(SIOTXDPin), lowISR,  CHANGE);
+#endif
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -1941,7 +2082,14 @@ void setup() {
   case SD_CARD_TYPE_SD1:
     Serial.println("SD1");
     break;
-  case SD_CARD_TYPE_SD2:
+  case SD_CARD_TYPE_SD2:      while( digitalread(SIOBUSYPin) == LOW)
+	{
+	}
+
+      while( digitalread(SIOBUSYPin) == HIGH)
+	{
+	}
+
     Serial.println("SD2");
     break;
   case SD_CARD_TYPE_SDHC:
