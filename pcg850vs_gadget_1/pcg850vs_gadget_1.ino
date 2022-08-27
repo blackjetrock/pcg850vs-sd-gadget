@@ -184,7 +184,8 @@ volatile int waiting_for_start = 1;
 
 #define START_BIT 2
 
-// Flag that indicates we have a bit or bits
+// Flag that indicates we have a bit or bits. This indicates activity on the serial
+// line that may need to be attended to
 volatile int got_bit = 0;
 
 // How many bits we have received
@@ -342,6 +343,8 @@ void set_if_inputs()
 // 
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Set interface to SIO mode
 
 void set_if_sio()
 {
@@ -1865,6 +1868,8 @@ void setup() {
   delay(100);
   Wire.begin();
 
+  // Set the interface to be all inputs, this is a safe state to leave things in
+  // until we decide to do some work over the interface
   set_if_inputs();
 
   pinMode(PA0, INPUT);
@@ -2007,6 +2012,7 @@ void setup() {
 
   // We want an interrupt on rising and falling edges of the TXD signal
   attachInterrupt(digitalPinToInterrupt(SIOTXDPin), lowISR,  CHANGE);
+  
   //  attachInterrupt(digitalPinToInterrupt(SIOTXDPin), highISR, RISING);
 }
 
@@ -2038,11 +2044,12 @@ void loop() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// The ISRs look at edges on the TXD line. The delats between the edges are
+// The ISRs look at edges on the TXD line. The delays between the edges are
 // processed to get the data stream.
 // 
 // This is called when a falling edge is detected on the TXD pin
-// 
+// Despite the interrupt funtion name, this is now called on both rising and falling edges
+//
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 volatile long t, t2 = 0;
@@ -2053,7 +2060,7 @@ int in_byte = 0;
 void lowISR()
 {
   // Debug
-
+  // This line indicates when a n interrupt is running. 
   digitalWrite(statPin, HIGH);
 
   // If the TXD line is now high then it was a period of zeros, but as the TXD line is inverted
@@ -2099,25 +2106,46 @@ void lowISR()
   // Add some bits to the bit stream
   for(i=0; i<number_of_bits; i++)
     {
-      // Shift one bit in
+      // Shift one bit in to 'capture_bits' which is a window that we use to process
+      // the bits as they arrive
+
+      // Shift data in to the top bit position
       capture_bits = capture_bits >> 1;
       capture_bits += bit_value<<15;
       
       // One more bit
       capture_bits_len++;
       
-      // Do we have a start bit?
+      // The window looks like this (we use 8n1 format only)
+      //
+      //  SDDD DDDD DT.. ....
+      //
+      //  S: Start bit
+      //  D:Data bit of 8 bits long byte
+      //  T: Stop bit
+      //  .: Following bits, we don't care about these at the moment
+      //
+      // Check for a frame, this is a start bit (1), 8 data bits and a stop bit
+      // which is 1DDD DDDD D0xx xxxx
+      // To check framing we use a mask of 0x8040, if the value we get is
+      // 0x8000 then we have a start bit of 1 and a stop bit of 0, which is a frame
+      
       if( (capture_bits & 0x8040) == 0x8000 )
 	{
-	  // Yes we do
-	  // (hard coded for 8n1)
-	  // Check start and stop here      
+	  // We have a frame	  
+	  // Extract the data byte from the window
+	  
 	  stored_bytes[bytecount++] = (capture_bits & 0x7f80) >> 7;
+
+	  // We store the data bytes in a buffer and that has a maximum size. If we reach that
+	  // size then we discard the data
+	  
 	  if ( bytecount >= MAX_BYTES )
 	    {
 	      bytecount = MAX_BYTES -1;
 	    }
-	  
+
+	  // Every 500 bytes we display a status message
 	  if( (bytecount % 500) == 0 )
 	    {
 	      Serial.print(bytecount);
@@ -2138,11 +2166,17 @@ void lowISR()
 	      Serial.println("");
 	    }
 #endif
+
+	  // Blank out the byte we just received by replacing the bits of that frame with the
+	  // start bit line state. As the stop bit value is 0 the data byte detetion code above will not
+	  // see a data byte until the stop bit is received, which is a 0
 	  capture_bits = 0xffff;
 	}
+      
       // Signal we have a bit or bits
       got_bit = 1;
     }
-  
+
+  // Debug
   digitalWrite(statPin, LOW);
 }
