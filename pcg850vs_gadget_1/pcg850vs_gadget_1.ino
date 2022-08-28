@@ -9,8 +9,11 @@
 //           AJM 21/08/22   v2.0   Merged SBH code, altered version and put back in menu options
 //           AJM 22/08/22   v2.1   Tidied version string and menu
 //           AJM 27/08/22   v2.2   Added SSIO reception interrupt. Temp comment out due to menu scrolling
-//                                 not working. 
-////////////////////////////////////////////////////////////////////////////
+//                                 not working.
+//           AJM 28/08/22   v2.3   Added 'Send File' menu option. This sends the file data directly from an
+//                                 SD card file so has no buffer involved and hence no length limit.
+//                                 Re-arranged menus so they always fit on a screen.
+////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // ARDUINO IDE SETTINGS
 // Board:          Generic STM32F1 Series
@@ -20,7 +23,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
-#define VERSION_STRING "V2.2"
+#define VERSION_STRING "V2.3"
 
 #include <SPI.h>
 #include <SD.h>
@@ -35,6 +38,8 @@
 #define OLED_RESET     4 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+#define ACK1  1
+#define ACK2  0       // Works with PCG850
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -223,6 +228,161 @@ void but_ev_down();
 void but_ev_select();
 void button_ssio_mode();
 
+
+void send_serial_byte(int byte)
+{
+  int j;
+  
+  // Start bit
+  digitalWrite(SIORXDPin, HIGH);
+  delayMicroseconds(bit_period);
+  
+  // Now 8 data bits, LS first
+  for(j=0; j<8; j++)
+    {
+      if( byte & 1 )
+	{
+	  digitalWrite(SIORXDPin, LOW);
+	  delayMicroseconds(bit_period);
+	}
+      else
+	{
+	  digitalWrite(SIORXDPin, HIGH);
+	  delayMicroseconds(bit_period);
+	}
+      
+      byte >>= 1;
+    }
+  
+  // Stop bit
+  digitalWrite(SIORXDPin, LOW);
+  delayMicroseconds(bit_period);
+  
+  // Put a little character delay in
+  delayMicroseconds(10*bit_period);
+  
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// Sends a file 
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// This sends a file from SD card to the 850. The buffer is not used, so any size file should
+// be handled fine, assuming the 850 can receive it
+
+void send_file(boolean oled_nserial)
+{
+  int i, j;
+  int bytecount = 0;
+  String fullBarGraph = "************************";
+  int byte_sent;
+  
+  if( oled_nserial )
+    {
+      display.clearDisplay();
+      display.setCursor(0,0);
+      display.println("Sending file ");
+      display.println(current_file);
+      display.display();
+      delay(1000);
+    }
+  else
+    {
+      Serial.print("Sending file '");
+      Serial.print(current_file);
+      Serial.println("'");
+    }
+  
+  myFile = SD.open(current_file);
+  
+  if (myFile)
+    {
+      // Read through to find size of file
+      while (myFile.available())
+	{
+	  myFile.read();
+	  bytecount++;
+	}
+
+      // close the file:
+      myFile.close();
+
+      // and re-open
+      myFile = SD.open(current_file);
+
+      i = 0;
+      
+      // Read from the file and send it
+      while (myFile.available())
+	{
+	  byte_sent = myFile.read();	  
+
+	  send_serial_byte(byte_sent);
+	  i++;
+	  
+	  // Bar graph status update
+	  if( oled_nserial )
+	    {
+	      display.clearDisplay();
+	      display.setCursor(0,0);
+	      display.println(fullBarGraph.substring(0, int(20*i/bytecount)));
+	      display.setCursor(0,20);
+	      display.print(i);
+	      display.print(" of ");
+	      display.print(bytecount);
+	      display.print(" bytes");
+	      display.display();
+	    }
+	  else
+	    {
+	      Serial.print(i);
+	    }
+	}
+      
+      // close the file:
+      myFile.close();
+
+      // Add end of file marker if it wasn't the last character sent
+      if( byte_sent != 0x1a )
+	{
+	  send_serial_byte(0x1a);
+	}
+      
+      if( oled_nserial )
+	{
+	  display.clearDisplay();
+	  display.setCursor(0,0);
+	  display.println("Done.");
+	  display.display();
+	  delay(1000);
+	}
+      else
+	{
+	  Serial.println("Done");
+	}
+    }
+  else
+    {
+      // if the file didn't open, print an error:
+      if( oled_nserial )
+	{
+	  display.println("Error opening");
+	  display.println(current_file);
+	  display.display();
+	  delay(1000);
+	}
+      else
+	{
+	  Serial.print("Error opening ");
+	  Serial.println(current_file);
+	}
+    }
+}
+
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Sends the currently loaded data bytes to the PC-G850 using the currently
@@ -239,7 +399,6 @@ void send_databytes(boolean oled_nserial)
   int i, j;
   int byte;
   String fullBarGraph = "************************";
-  
 
   // Add end of file marker if there isn't one
   if( stored_bytes[bytecount-1] != 0x1a )
@@ -578,7 +737,6 @@ void cmd_send(String cmd)
 {
   send_databytes(false);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -1030,9 +1188,6 @@ void to_home_menu(struct MENU_ELEMENT *e)
   draw_menu(current_menu, true);
 }
 
-
-
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Sets PIO to all inputs 
@@ -1054,7 +1209,6 @@ void button_all_inputs(MENU_ELEMENT *e)
 
   draw_menu(current_menu, true);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -1146,6 +1300,20 @@ void button_clear(MENU_ELEMENT *e)
   
   delay(1000);
   draw_menu(current_menu, true);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// Set new file name
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// This sets the file name to use for writing data to the SD card
+// used when flow control is in use as file name has to be set up before data sent.
+
+void button_new_file(MENU_ELEMENT *e)
+{
+
 }
 
 
@@ -1549,6 +1717,12 @@ void button_send(MENU_ELEMENT *e)
   draw_menu(current_menu, true);
 }
 
+void button_send_file(MENU_ELEMENT *e)
+{
+  send_file(true);
+  draw_menu(current_menu, true);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -1673,18 +1847,33 @@ struct MENU_ELEMENT ssio_menu[] =
     {MENU_END,       "",                           NULL,     NULL},
   };
 
+struct MENU_ELEMENT mode_menu[] =
+  {
+   {SUB_MENU,       "SSIO setup",                 ssio_menu, NULL},
+   {SUB_MENU,       "PIO setup",                  pio_menu,  NULL},
+   {BUTTON_ELEMENT, "Exit",                       NULL,     button_to_home},
+   {MENU_END,       "",                           NULL,     NULL},
+  };
+
+struct MENU_ELEMENT buffer_menu[] =
+  {
+   {BUTTON_ELEMENT, "Read file to buffer",        NULL,      button_read},
+   {BUTTON_ELEMENT, "Display buffer",             NULL,      button_display},
+   {BUTTON_ELEMENT, "Clear buffer",               NULL,      button_clear},
+   {BUTTON_ELEMENT, "Send buffer to 850VS",       NULL,      button_send},
+   {BUTTON_ELEMENT, "Write buffer to file",       NULL,      button_write},
+   {BUTTON_ELEMENT, "Exit",                       NULL,     button_to_home},
+   {MENU_END,       "",                           NULL,     NULL},
+  };
+
 struct MENU_ELEMENT home_menu[] =
   {
-    {SUB_MENU,       "SIO setup",                  sio_menu,  NULL},
-    //    {SUB_MENU,       "SSIO setup",                 ssio_menu, NULL},
-    {BUTTON_ELEMENT, "Clear buffer",               NULL,      button_clear},
-    {BUTTON_ELEMENT, "List_SD",                    NULL,      button_list},
-    {BUTTON_ELEMENT, "Read file to buffer",        NULL,      button_read},
-    {BUTTON_ELEMENT, "Display buffer",             NULL,      button_display},
-    {BUTTON_ELEMENT, "Send buffer to 850VS",       NULL,      button_send},
-    {BUTTON_ELEMENT, "Write buffer to file",       NULL,      button_write},
-    {SUB_MENU,       "PIO setup",                  pio_menu,  NULL},   
-    {MENU_END,       "",                           NULL,      NULL},
+    {SUB_MENU,       "SIO setup",                  sio_menu,    NULL},
+    {BUTTON_ELEMENT, "List SD",                    NULL,        button_list},
+    {SUB_MENU,       "Buffer",                     buffer_menu, NULL},
+    {BUTTON_ELEMENT, "Send file to 850VS",         NULL,        button_send_file},
+    {SUB_MENU,       "Modes",                      mode_menu,   NULL},
+    {MENU_END,       "",                           NULL,        NULL},
   };
 
 
@@ -1937,6 +2126,11 @@ volatile unsigned int ssio_data_len = 0;
 
 void ssio_isr()
 {
+
+#if ACK1
+  digitalWrite(SIOACKPin, HIGH);  
+#endif
+  
   // This is run when the clock line goes high
   // Sample data line and add data bit
   
@@ -1962,6 +2156,9 @@ void ssio_isr()
       
       ssio_data_len = 0;
     }
+#if ACK1
+  digitalWrite(SIOACKPin, LOW);  
+#endif
   
 }
 
@@ -1980,9 +2177,12 @@ void button_ssio_mode(struct MENU_ELEMENT *e)
   display.setCursor(0,0);
   display.display();
 #endif
+
+#if ACK1
   // Enable transmission
   digitalWrite(SIOACKPin, HIGH);
-
+#endif
+  
 #if 0
   // Sit in loop looking for data to come in
   while(!done)
@@ -2164,12 +2364,57 @@ void setup() {
   //  attachInterrupt(digitalPinToInterrupt(SIOTXDPin), highISR, RISING);
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// Flow control
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// **************************************************************************************************
-// *
-// * MAIN
-// *
-// **************************************************************************************************
+// Flow control
+
+void flow_control_task()
+{
+  #if 0
+  // See if the buffer is nearly full, if so, drive the handshake line to stop more data arriving
+  // and write the buffer contents to SD card. The 'New File' menu option is used to set up a new
+  // file on the SD card for data.
+
+  if( bytecount > (MAX_BYTES * 7 / 10) )
+    {
+      // Buffer nearly full, hold off more data and unload this to SD card
+      digitalWrite(SIOCTSPin, LOW);  // LOW stops data coming from 850
+
+      // Delay for a while to allow in-progress traffic to finish
+      delay(1000);
+
+      // Status message
+      display.clearDisplay();
+      display.setCursor(0,0);
+      display.println("");
+      display.print("SD write ");
+      display.print(" ");
+      display.println();
+      display.print("'");
+      display.print(filename);
+      display.print("'");
+      display.display();
+
+      // Write the buffer contents to SD card
+
+      // Clear the buffer
+      // We use 0 here as we don't care about the extra character that appear at the start
+      bytecount = 0;
+      
+      digitalWrite(SIOCTSPin, HIGH);    // Allow data to flow again
+    }
+  #endif
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// Main loop
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void loop() {
   int i;
@@ -2187,6 +2432,9 @@ void loop() {
       Serial.print(" S");
       Serial.println(c,HEX); 
     }
+
+  // Run a task that handles flow control on the data coming in to us
+  flow_control_task();
 }
 
 
