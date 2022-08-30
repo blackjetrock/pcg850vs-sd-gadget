@@ -159,8 +159,10 @@ struct MENU_ELEMENT
 struct MENU_ELEMENT *current_menu;
 struct MENU_ELEMENT *last_menu;
 struct MENU_ELEMENT *the_home_menu;
+
 unsigned int menu_selection = 0;
 unsigned int menu_size = 0;
+unsigned int top_scroll = 0;
 
 #define MAX_LISTFILES 7
 #define MAX_NAME 20
@@ -534,17 +536,29 @@ void set_if_ssio()
   pinMode(SIOBUSYPin, INPUT);
   pinMode(SIODOUTPin, INPUT);
   pinMode(SIOXOUTPin, INPUT);
+  
+  pinMode(SIODINPin,  INPUT);
+  //  digitalWrite(SIODINPin, LOW);
+  pinMode(SIOXINPin,  OUTPUT);
+  digitalWrite(SIOXINPin, LOW);
+
   // Drive signals to allow sending by 850
   digitalWrite(SIOACKPin, LOW);    // Wait
 
   pinMode(SIOACKPin,  OUTPUT);
 
   // Drive signals to allow sending by 850
+
   digitalWrite(SIOACKPin, LOW);
 
-  detachInterrupt(digitalPinToInterrupt(SIOTXDPin));
-  attachInterrupt(digitalPinToInterrupt(SIOXOUTPin), ssio_isr,  RISING);
+  //detachInterrupt(digitalPinToInterrupt(SIOTXDPin));
+  //attachInterrupt(digitalPinToInterrupt(SIOXOUTPin), ssio_isr,  RISING);
   
+}
+
+void set_if_pcu(void)
+{
+  set_if_ssio();
 }
 
 
@@ -1588,6 +1602,8 @@ void button_list(MENU_ELEMENT *e)
 
   // Set up menu of file names
   current_menu = &(listfiles[0]);
+  //  top_scroll = 0;
+  //menu_selection = 0;
   draw_menu(current_menu, false);
 
 }
@@ -1793,8 +1809,13 @@ void button_set_ssio(MENU_ELEMENT *e)
 {
   // Set the data directions for the SIO mode
   set_if_ssio();
- 
 
+  // Remove the interrupt handler that receives SIO data
+  detachInterrupt(digitalPinToInterrupt(SIOTXDPin));
+  detachInterrupt(digitalPinToInterrupt(SIOBUSYPin));
+  attachInterrupt(digitalPinToInterrupt(SIOXOUTPin), ssio_isr,  RISING);
+
+  
   //reset data counter
   bytecount = 0;
 
@@ -1803,6 +1824,35 @@ void button_set_ssio(MENU_ELEMENT *e)
   display.clearDisplay();
   display.setCursor(0,0);
   display.println("SSIO Mode set");
+  display.display();
+  
+  delay(1000);
+  to_back_menu(NULL);
+}
+
+void button_set_pcu(MENU_ELEMENT *e)
+{
+  // Set the data directions for the PCU mode
+  set_if_pcu();
+
+  // Remove the interrupt handler that receives SIO data
+  detachInterrupt(digitalPinToInterrupt(SIOTXDPin));
+  attachInterrupt(digitalPinToInterrupt(SIOXOUTPin), pcu_xout_isr, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(SIOBUSYPin), pcu_isr,      CHANGE);
+
+  //reset data counter
+  bytecount = 0;
+
+  capture_bits = 0xffff;
+
+  // Set ACK high to enable data flow
+  digitalWrite(SIOACKPin, LOW);
+  delay(100);
+  //xdigitalWrite(SIOACKPin, HIGH);
+  
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("PCU Mode set");
   display.display();
   
   delay(1000);
@@ -1847,10 +1897,20 @@ struct MENU_ELEMENT ssio_menu[] =
     {MENU_END,       "",                           NULL,     NULL},
   };
 
+struct MENU_ELEMENT pcu_menu[] =
+  {
+    {BUTTON_ELEMENT, "Set PCU Mode",               NULL,     button_set_pcu},
+    {BUTTON_ELEMENT, "Set All Inputs",             NULL,     button_set_inputs},
+    //    {BUTTON_ELEMENT, "Capture data",               NULL,     button_pcu_mode},
+    {BUTTON_ELEMENT, "Exit",                       NULL,     button_to_home},
+    {MENU_END,       "",                           NULL,     NULL},
+  };
+
 struct MENU_ELEMENT mode_menu[] =
   {
    {SUB_MENU,       "SSIO setup",                 ssio_menu, NULL},
    {SUB_MENU,       "PIO setup",                  pio_menu,  NULL},
+   {SUB_MENU,       "PCU setup",                  pcu_menu,  NULL},
    {BUTTON_ELEMENT, "Exit",                       NULL,     button_to_home},
    {MENU_END,       "",                           NULL,     NULL},
   };
@@ -1883,48 +1943,61 @@ struct MENU_ELEMENT home_menu[] =
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Works out how big the menu is, i.e. how many entries in total, not
+// just those on the screen
+
+void size_menu(struct MENU_ELEMENT *e)
+{
+  menu_size = 0;
+  while( e->type != MENU_END )
+    {
+      menu_size++;
+      e++;
+    }
+}
+
 void draw_menu(struct MENU_ELEMENT *e, boolean clear)
 {
   int i = 0;
   char *curs = " ";
-  char etext[20];
-
+  char etext[40];
+  struct MENU_ELEMENT *this_menu = e;
+  
   Serial.println("draw_menu");
+
   // Clear screen
-  if(clear,1)
+  display.clearDisplay();
+  
+  // Skip the entries that are off the top of the screen due to scrolling
+  for(i=0; i<top_scroll; i++)
     {
-      display.clearDisplay();
+      e++;
     }
+  //  i--;
   
   while( e->type != MENU_END )
     {
       sprintf(etext, " %-19s", e->text);
+      // Following displays debug information for menu display code
+      //sprintf(etext, " %d:%d %d %d", i, menu_selection, top_scroll, e->type);
       
       switch(e->type)
 	{
 	case BUTTON_ELEMENT:
-	  display.setCursor(0, i*8);
-	  //display.printChar(curs);
-	  if( clear,1 )
-	    {
-	      display.println(etext);
-	    }
+	  display.setCursor(0, (i-top_scroll)*8);
+	  display.println(etext);
 	  break;
 
 	case SUB_MENU:
-	  display.setCursor(0, i*8);
-	  //display.printChar(curs);
-	  if ( clear,1 )
-	    {
-	      display.println(etext);
-	    }
+	  display.setCursor(0, (i-top_scroll)*8);
+	  display.println(etext);
 	  break;
 	}
       e++;
       i++;
     }
-  
-  menu_size = i;
+
+  size_menu(this_menu);
 
 #if DEBUG
   Serial.print("menu_size:");
@@ -1932,19 +2005,24 @@ void draw_menu(struct MENU_ELEMENT *e, boolean clear)
 #endif
   
   // Blank the other entries
-  //make sure menu_selection isn't outside the menu
+  // Make sure menu_selection isn't outside the menu
   if( menu_selection >= menu_size )
     {
       menu_selection = menu_size-1;
     }
 
-  for(; i<MAX_LISTFILES; i++)
+  // Clear lines after the end of the menu if it's smaller than
+  // the screen
+#if 0
+  for(i=top_scroll; i<top_scroll; i++)
     {
-      display.setCursor(0, i*8);
+      display.setCursor(0, (i-top_scroll)*8);
       display.println("               ");
     }
-
-  for(i=0;i<menu_size;i++)
+#endif
+  
+  // Draw cursor
+  for(i=top_scroll;i<top_scroll+MAX_LISTFILES;i++)
     {
       if( i == menu_selection )
 	{
@@ -1955,8 +2033,15 @@ void draw_menu(struct MENU_ELEMENT *e, boolean clear)
 	  curs = " ";
 	}
 
-      display.setCursor(0, i*8);
-      display.print(curs);
+      if( i < menu_size)
+	{
+	  display.setCursor(0, (i-top_scroll)*8);
+	  display.print(curs);
+	}
+      else
+	{
+	  display.println("               ");
+	}
     }
   display.display();
   Serial.println("Draw_menu exit");
@@ -1979,8 +2064,9 @@ void but_ev_null()
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void but_ev_up()
+void but_ev_up2()
 {
+  
   if( menu_selection == 0 )
     {
       menu_selection = menu_size - 1;
@@ -1994,16 +2080,65 @@ void but_ev_up()
 }
 
 
+// Scrolling version
+
+
+
+void but_ev_up()
+{
+  
+  if( menu_selection == 0 )
+    {
+      if( top_scroll == 0 )
+	{
+	  // Don't move
+	}
+    }
+  else
+    {
+      menu_selection--;
+    }
+
+  if( menu_selection < top_scroll )
+	{
+	  top_scroll--;
+	}
+
+  draw_menu(current_menu, false);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // 
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Wrapping version but only works on one screen of options
+
+void but_ev_down2()
+{
+  menu_selection = (menu_selection + 1) % menu_size;
+
+  draw_menu(current_menu, false);
+}
+
+// Scrolling version
 void but_ev_down()
 {
+  menu_selection++;
 
-  menu_selection = (menu_selection + 1) % menu_size;
+  if( menu_selection == menu_size)
+    {
+      menu_selection--;
+    }
+  else
+    {
+      if( menu_selection == top_scroll+MAX_LISTFILES )
+	{
+	  top_scroll++;
+	}
+    }
 
   draw_menu(current_menu, false);
 }
@@ -2029,6 +2164,9 @@ void but_ev_select()
 	    {
 	    case SUB_MENU:
 	      current_menu = (MENU_ELEMENT *)e->submenu;
+	      top_scroll = 0;
+	      menu_selection = 0;
+	      file_offset = 0;
 	      draw_menu(current_menu, true);
 	      break;
 	      
@@ -2162,6 +2300,99 @@ void ssio_isr()
   
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// PCU ISR
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+volatile unsigned int pcu_data = 0;
+volatile unsigned int pcu_data_len = 0;
+
+
+void pcu_xout_isr()
+{
+  if( digitalRead(SIOXOUTPin)==HIGH )
+    {
+      digitalWrite(SIOACKPin, HIGH);
+      delay(10);
+      digitalWrite(SIOACKPin, LOW);
+    }
+  else
+    {
+      digitalWrite(SIOACKPin, LOW);
+    }
+}
+
+void pcu_isr()
+{
+  int busy_state;
+  
+  // This is run when the clock line goes high or low
+
+  if( digitalRead(SIOBUSYPin)==HIGH )
+    {
+      busy_state = 1;
+    }
+  else
+    {
+      busy_state = 0;
+    }
+
+  // Sample data line on rising edge and add data bit
+
+  if( busy_state )
+    {
+      if( digitalRead(SIODINPin)==HIGH )
+	{
+	  pcu_data <<= 1;
+	  pcu_data += 1;
+	}
+      else
+	{
+	  pcu_data <<= 1;
+	}
+      
+      pcu_data_len++;
+      
+      if( pcu_data_len == 8 )
+	{
+	  stored_bytes[bytecount++] = pcu_data;
+	  if ( bytecount >= MAX_BYTES )
+	    {
+	      bytecount = MAX_BYTES -1;
+	    }
+	  
+	  pcu_data_len = 0;
+	}
+    }
+  
+  // ACK the bit
+  if( busy_state )
+    {
+      digitalWrite(SIOACKPin, HIGH);  
+    }
+  else
+    {
+      digitalWrite(SIOACKPin, LOW);  
+    }
+    
+}
+
+#if 0
+void button_pcu_mode(struct MENU_ELEMENT *e)
+{
+  int done = 0;
+  char chstr[2] = " ";
+  int data;
+  
+  // Remove the interrupt handler that receives SIO data
+  detachInterrupt(digitalPinToInterrupt(SIOTXDPin));
+  detachInterrupt(digitalPinToInterrupt(SIOXOUTPin));
+  attachInterrupt(digitalPinToInterrupt(SIOBUSYPin), pcu_isr,  CHANGE);
+}
+#endif
+
 void button_ssio_mode(struct MENU_ELEMENT *e)
 {
   int done = 0;
@@ -2170,28 +2401,14 @@ void button_ssio_mode(struct MENU_ELEMENT *e)
   
   // Remove the interrupt handler that receives SIO data
   detachInterrupt(digitalPinToInterrupt(SIOTXDPin));
-  attachInterrupt(digitalPinToInterrupt(SIOXOUTPin), ssio_isr,  CHANGE);
-
-#if 0
-  display.clearDisplay();
-  display.setCursor(0,0);
-  display.display();
-#endif
+  detachInterrupt(digitalPinToInterrupt(SIOBUSYPin));
+  attachInterrupt(digitalPinToInterrupt(SIOXOUTPin), ssio_isr,  RISING);
 
 #if ACK1
   // Enable transmission
   digitalWrite(SIOACKPin, HIGH);
 #endif
   
-#if 0
-  // Sit in loop looking for data to come in
-  while(!done)
-    {
-    }
-  
-  // End of mode, re-install interrupt handler and exit
-  attachInterrupt(digitalPinToInterrupt(SIOTXDPin), lowISR,  CHANGE);
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
