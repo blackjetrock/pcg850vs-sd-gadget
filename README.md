@@ -59,6 +59,14 @@ OLED displays come in two pinouts, with reversed power connections. There's two 
 
 I use an ST-LINKV2 from ebay for programming the blue pill. Any method of getting the sketch on to the blue pill should be fine.
 
+Code
+----
+
+The menu structure that the code uses varies with the version of code that is running and th efunctions that are added to the code.
+The menu option names have been elaborated from th ebasic names given in the instruction sheet, but it should be possible to work out 
+which option does what.
+
+
 Supported Devices
 -----------------
 
