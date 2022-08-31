@@ -5,7 +5,7 @@
 // 
 // Modified: SBH 04/08/22   v1.0   Added comments
 //           SBH 05/08/22   v1.1   Removed surplus code, added transmit status graph
-//           SBH 05/08/22   v1.2   Blinking cursor
+//           SBH 05/08/22   v1.2   Blinking cursor    case TRANSFER_PCU:
 //           AJM 21/08/22   v2.0   Merged SBH code, altered version and put back in menu options
 //           AJM 22/08/22   v2.1   Tidied version string and menu
 //           AJM 27/08/22   v2.2   Added SSIO reception interrupt. Temp comment out due to menu scrolling
@@ -13,6 +13,9 @@
 //           AJM 28/08/22   v2.3   Added 'Send File' menu option. This sends the file data directly from an
 //                                 SD card file so has no buffer involved and hence no length limit.
 //                                 Re-arranged menus so they always fit on a screen.
+//           AJM 31/08/22   v2.4   Has fixed menu scrolling and start of extra modes for data
+//                                 transfer
+//                                 Added status line
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // ARDUINO IDE SETTINGS
@@ -23,7 +26,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
-#define VERSION_STRING "V2.3"
+#define VERSION_STRING "V2.4"
 
 #include <SPI.h>
 #include <SD.h>
@@ -46,6 +49,9 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // Define variables
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int loop_loops = 0;
+
 Sd2Card card;
 SdVolume volume;
 SdFile root;
@@ -164,8 +170,9 @@ unsigned int menu_selection = 0;
 unsigned int menu_size = 0;
 unsigned int top_scroll = 0;
 
+#define MENU_TOP_LINE 1
 #define MAX_LISTFILES 7
-#define MAX_NAME 20
+#define MAX_NAME      20
 
 const char *filetag = "@file ";
 
@@ -174,6 +181,7 @@ int num_listfiles;
 char names[MAX_LISTFILES][MAX_NAME];
 char selected_file[MAX_NAME+1];
 char current_file[MAX_NAME+1];
+char current_rx_file[MAX_NAME+1];
 
 // Where the received data goes
 char stored_bytes[MAX_BYTES] = "Test data example. 01234567890";
@@ -183,7 +191,11 @@ int stored_bytes_index = 0;
 // How many bytes in the buffer. We have a default for testing without a Microtan
 int bytecount = 24;
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
 // communication with ISRs
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 volatile int data_byte;
 volatile int bit_count;
@@ -217,6 +229,22 @@ volatile int bit_value = 0;
 //volatile int bit_period = 833;
 volatile int bit_period = 102;
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// What type of transfer protocol are we currently set up to use?
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+enum TRANSFER_TYPE
+  {
+    TRANSFER_SIO = 20,
+    TRANSFER_SSIO,
+    TRANSFER_PCU,
+    TRANSFER_PIO,
+    TRANSFER_NONE,
+  };
+
+enum TRANSFER_TYPE transfer_type = TRANSFER_NONE;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -1119,6 +1147,50 @@ struct
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
+// Display status line
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void display_status_line(void)
+{
+  
+  display.setCursor(0*6, 0);
+  display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);        // Draw white text on black
+  display.print(F("               "));
+  display.setTextColor(SSD1306_WHITE);        // Draw white text
+  
+  display.setCursor(16*6, 0);
+  switch(transfer_type)
+    {
+    case TRANSFER_SIO:
+      display.print(F(" SIO"));      
+      break;
+      
+    case TRANSFER_SSIO:
+      display.print(F("SSIO"));      
+      break;
+      
+    case TRANSFER_PCU:
+      display.print(F(" PCU"));      
+      break;
+
+    case TRANSFER_PIO:
+      display.print(F(" PIO"));      
+      break;
+      
+    default:
+      display.print(F("????"));      
+      break;
+    }
+
+  // Display bytecount at top left of screen
+  display.setCursor(0*6, 0*8);
+  display.print(bytecount);
+  display.display();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//
 //
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1132,7 +1204,6 @@ void cmd_help(String cmd)
       Serial.println(cmdlist[i].cmdname);
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -1795,8 +1866,13 @@ void button_set_sio(MENU_ELEMENT *e)
   display.setCursor(0,0);
   display.println("SIO Mode set");
   display.display();
+
+  transfer_type = TRANSFER_SIO;
+  
   delay(1000);
   to_back_menu(NULL);
+
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1825,9 +1901,12 @@ void button_set_ssio(MENU_ELEMENT *e)
   display.setCursor(0,0);
   display.println("SSIO Mode set");
   display.display();
+  transfer_type = TRANSFER_SSIO;
   
   delay(1000);
   to_back_menu(NULL);
+
+
 }
 
 void button_set_pcu(MENU_ELEMENT *e)
@@ -1854,6 +1933,7 @@ void button_set_pcu(MENU_ELEMENT *e)
   display.setCursor(0,0);
   display.println("PCU Mode set");
   display.display();
+  transfer_type = TRANSFER_PCU;
   
   delay(1000);
   to_back_menu(NULL);
@@ -1984,12 +2064,12 @@ void draw_menu(struct MENU_ELEMENT *e, boolean clear)
       switch(e->type)
 	{
 	case BUTTON_ELEMENT:
-	  display.setCursor(0, (i-top_scroll)*8);
+	  display.setCursor(0, (i-top_scroll+MENU_TOP_LINE)*8);
 	  display.println(etext);
 	  break;
 
 	case SUB_MENU:
-	  display.setCursor(0, (i-top_scroll)*8);
+	  display.setCursor(0, (i-top_scroll+MENU_TOP_LINE)*8);
 	  display.println(etext);
 	  break;
 	}
@@ -2035,7 +2115,7 @@ void draw_menu(struct MENU_ELEMENT *e, boolean clear)
 
       if( i < menu_size)
 	{
-	  display.setCursor(0, (i-top_scroll)*8);
+	  display.setCursor(0, (i-top_scroll+MENU_TOP_LINE)*8);
 	  display.print(curs);
 	}
       else
@@ -2044,6 +2124,10 @@ void draw_menu(struct MENU_ELEMENT *e, boolean clear)
 	}
     }
   display.display();
+  
+  display_status_line();
+  
+
   Serial.println("Draw_menu exit");
 }
 
@@ -2591,40 +2675,43 @@ void setup() {
 
 void flow_control_task()
 {
-  #if 0
-  // See if the buffer is nearly full, if so, drive the handshake line to stop more data arriving
-  // and write the buffer contents to SD card. The 'New File' menu option is used to set up a new
-  // file on the SD card for data.
-
-  if( bytecount > (MAX_BYTES * 7 / 10) )
+  switch(transfer_type)
     {
-      // Buffer nearly full, hold off more data and unload this to SD card
-      digitalWrite(SIOCTSPin, LOW);  // LOW stops data coming from 850
-
-      // Delay for a while to allow in-progress traffic to finish
-      delay(1000);
-
-      // Status message
-      display.clearDisplay();
-      display.setCursor(0,0);
-      display.println("");
-      display.print("SD write ");
-      display.print(" ");
-      display.println();
-      display.print("'");
-      display.print(filename);
-      display.print("'");
-      display.display();
-
-      // Write the buffer contents to SD card
-
-      // Clear the buffer
-      // We use 0 here as we don't care about the extra character that appear at the start
-      bytecount = 0;
+    case TRANSFER_SIO:
+      // See if the buffer is nearly full, if so, drive the handshake line to stop more data arriving
+      // and write the buffer contents to SD card. The 'New File' menu option is used to set up a new
+      // file on the SD card for data.
       
-      digitalWrite(SIOCTSPin, HIGH);    // Allow data to flow again
+      if( bytecount > (MAX_BYTES * 7 / 10) )
+	{
+	  // Buffer nearly full, hold off more data and unload this to SD card
+	  digitalWrite(SIOCTSPin, LOW);  // LOW stops data coming from 850
+	  
+	  // Delay for a while to allow in-progress traffic to finish
+	  delay(1000);
+	  
+	  // Status message
+	  display.clearDisplay();
+	  display.setCursor(0,0);
+	  display.println("");
+	  display.print("SD write ");
+	  display.print(" ");
+	  display.println();
+	  display.print("'");
+	  display.print(current_rx_file);
+	  display.print("'");
+	  display.display();
+	  
+	  // Write the buffer contents to SD card
+	  
+	  // Clear the buffer
+	  // We use 0 here as we don't care about the extra character that appear at the start
+	  bytecount = 0;
+	  
+	  digitalWrite(SIOCTSPin, HIGH);    // Allow data to flow again
+	}
+      break;
     }
-  #endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2634,7 +2721,6 @@ void flow_control_task()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void loop() {
-  int i;
   char c;
 
   // Update the button state
@@ -2651,7 +2737,16 @@ void loop() {
     }
 
   // Run a task that handles flow control on the data coming in to us
-  flow_control_task();
+  //flow_control_task();
+
+  // Display periodic status
+  if( loop_loops == 1000 )
+    {
+      display_status_line();
+      loop_loops = 0;
+    }
+  
+  loop_loops++;
 }
 
 
