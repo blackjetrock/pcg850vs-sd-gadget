@@ -4,9 +4,9 @@ EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
 Sheet 1 1
-Title ""
-Date ""
-Rev ""
+Title "PCG-850VS SD card Gadget"
+Date "2022-09-12"
+Rev "V2.2"
 Comp ""
 Comment1 ""
 Comment2 ""
@@ -49,7 +49,7 @@ $EndComp
 Wire Wire Line
 	3350 2250 5100 2250
 Wire Wire Line
-	5100 2250 5100 2700
+	5100 2250 5100 2650
 Wire Wire Line
 	5100 4800 5100 5450
 Wire Wire Line
@@ -125,10 +125,6 @@ Wire Wire Line
 Wire Wire Line
 	7700 5450 7100 5450
 Connection ~ 7100 5450
-Wire Wire Line
-	7700 3450 7700 1950
-Wire Wire Line
-	7700 1950 6100 1950
 Wire Wire Line
 	4950 1950 4950 2700
 $Comp
@@ -338,7 +334,6 @@ Wire Wire Line
 	3950 3750 4200 3750
 Wire Wire Line
 	6100 3350 6100 1950
-Connection ~ 6100 1950
 Wire Wire Line
 	6100 1950 4950 1950
 Wire Wire Line
@@ -963,4 +958,13 @@ Wire Wire Line
 	8350 4400 8300 4400
 Wire Wire Line
 	8300 2250 8300 4400
+Wire Wire Line
+	5100 2650 7700 2650
+Wire Wire Line
+	7700 2650 7700 3450
+Connection ~ 5100 2650
+Wire Wire Line
+	5100 2650 5100 2700
+Text Notes 8450 4175 0    50   ~ 0
+5V power to SD card, not all modules\ncan run off 3V3
 $EndSCHEMATC
