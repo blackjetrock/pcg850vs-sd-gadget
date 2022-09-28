@@ -1577,7 +1577,7 @@
 
   (gr_line (start 179.07 115.58) (end 179.07 135.8) (layer Edge.Cuts) (width 0.05))
   (gr_line (start 76.2 115.58) (end 76.2 135.8) (layer Edge.Cuts) (width 0.05))
-  (gr_text "SHARP PC-G850VS\nGadget V2.1" (at 110.49 99.06) (layer F.SilkS)
+  (gr_text "SHARP PC-G850VS\nGadget V2.2\nmenadue@gmail.com" (at 110.49 99.06) (layer F.SilkS)
     (effects (font (size 1.5 1.5) (thickness 0.3)))
   )
   (gr_line (start 76.2 135.8) (end 179.07 135.8) (layer Edge.Cuts) (width 0.05) (tstamp 5F0AA460))

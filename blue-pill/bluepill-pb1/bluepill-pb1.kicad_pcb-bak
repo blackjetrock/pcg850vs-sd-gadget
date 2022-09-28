@@ -90,7 +90,7 @@
       (mirror false)
       (drillshape 0)
       (scaleselection 1)
-      (outputdirectory "fab4/"))
+      (outputdirectory "fab5_V2_2/"))
   )
 
   (net 0 "")
